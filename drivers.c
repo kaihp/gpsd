@@ -242,6 +242,15 @@ static void nmea_event_hook(struct gps_device_t *session, event_t event)
 	    (void)nmea_send(session, "$PMTK605");
 	    break;
 #endif /* MTK3301_ENABLE */
+#ifdef SKYTRAQ_ENABLE
+	case 9:
+	    /* probe for Skytraq Venus6/8 -- query version */
+	  gpsd_log(&session->context->errout, LOG_PROG,
+		   "=> Probing for Skytraq\n");
+	  (void)nmea_send(session, "$Skytraq\n");
+	  (void)gpsd_write(session, "\xA0\xA1\x00\x02\x02\x01\x03\x0D\x0A", 9);
+	  break;
+#endif /* SKYTRAQ_ENABLE */
 	default:
 	    break;
 	}
