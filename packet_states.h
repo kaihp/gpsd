@@ -58,7 +58,7 @@
 #endif /* EARTHMATE_ENABLE */
 
 #if defined(SIRF_ENABLE) || defined(SKYTRAQ_ENABLE)
-   SIRF_LEADER_1,	/* seen first character of SiRF/Skytraq leader <0x0A> */
+   SIRF_LEADER_1,	/* seen first character of SiRF/Skytraq leader <0xA0> */
 #endif /* SIRF_ENABLE || SKYTRAQ_ENABLE */
 #ifdef SIRF_ENABLE
    SIRF_LEADER_2,	/* seen second character of SiRF leader */
