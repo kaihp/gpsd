@@ -1654,6 +1654,13 @@ static gps_mask_t processPSTI(int count, char *field[],
 		 "PSTI,001: Count: %d\n", count);
 	return mask;
     }
+    if (0 == strcmp("003", field[1])) {
+	/* Unknown message sent by S1216/Venus8 FW v2.2.4 */
+	/* Seen: 003,[123] */
+	gpsd_log(&session->context->errout, LOG_DATA,
+		 "PSTI,003: value: %d\n", atoi(field[2]));
+	return mask;
+    }
     if (0 == strcmp("005", field[1])) {
 	/* GPIO 10 event-triggered time & position stamp. */
 	gpsd_log(&session->context->errout, LOG_DATA,

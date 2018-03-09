@@ -211,6 +211,8 @@ typedef enum {
 	SKY_MSGID_63             = 0x63,
 	SKY_MSGID_64             = 0x64,
 	SKY_MSGID_65             = 0x65,
+	SKY_MSGID_67             = 0x67,
+	SKY_MSGID_6A             = 0x6A,
 	/* Output System Messages */
 	SKY_RESP_SW_VER          = 0x80,
 	SKY_RESP_SW_CRC          = 0x81,
@@ -265,8 +267,11 @@ typedef enum {
 	SKY_64_QUERY_CONSTEL_TYPE    = 0x1A,
 	SKY_64_CONFIG_LEAP_SEC       = 0x1F,
 	SKY_64_QUERY_GNSS_TIME       = 0x20,
+	SKY_64_CONFIG_PSTI_INTVL     = 0x21,
+	SKY_64_QUERY_PSTI_INTVL      = 0x22,
 	SKY_64_CONFIG_DATUM_INDEX    = 0x27,
 	SKY_64_QUERY_DATUM_INDEX     = 0x28,
+	SKY_64_QUERY_VERSION_EXT     = 0x7D,
 	SKY_64_RESP_BOOT_STATUS      = 0x80,
 	SKY_64_RESP_EXT_NMEA_INTVL   = 0x81,
 	SKY_64_RESP_INTERFER_DET     = 0x83,
@@ -274,13 +279,26 @@ typedef enum {
 	SKY_64_RESP_NAV_TYPE         = 0x8B,
 	SKY_64_RESP_CONSTEL_TYPE     = 0x8C,
 	SKY_64_RESP_GNSS_TIME        = 0x8E,
+	SKY_64_RESP_PSTI_INTVL       = 0x8F,
 	SKY_64_RESP_DATUM_INDEX      = 0x92,
+	SKY_64_RESP_GEOFENCE_DATA    = 0x96,
+	SKY_64_RESP_GEOFENCE_RESULT  = 0x97,
+	SKY_64_RESP_VERSION_EXT      = 0xFE,
 	SKY_65_CONFIG_PPS_WIDTH      = 0x01,
 	SKY_65_QUERY_PPS_WIDTH       = 0x02,
 	SKY_65_CONFIG_PPS_FREQ       = 0x03,
 	SKY_65_QUERY_PPS_FREQ        = 0x04,
 	SKY_65_RESP_PPS_WIDTH        = 0x80,
 	SKY_65_RESP_PPS_FREQ         = 0x81,
+	SKY_67_SET_BD_EPHEMERIS      = 0x01,
+	SKY_67_GET_BD_EPHEMERIS      = 0x02,
+	SKY_67_SET_BD_ALMANAC        = 0x03,
+	SKY_67_GET_BD_ALMANAC        = 0x04,
+	SKY_67_RESP_BD_EPHEMERIS     = 0x80,
+	SKY_67_RESP_BD_ALMANAC       = 0x81,
+	SKY_6A_CONFIG_RTK_MODE       = 0x01,
+	SKY_6A_QUERY_RTK_MODE        = 0x02,
+	SKY_6A_RESP_RTK_MODE         = 0x80
 } sky_sid_t;
 
 typedef enum {
@@ -299,5 +317,10 @@ typedef struct {
 #define SKY_START_2 0xA1
 #define SKY_END_1 0x0D
 #define SKY_END_2 0x0A
+
+#define SKY_MODE_NONE 0
+#define SKY_MODE_2D   1
+#define SKY_MODE_3D   2
+#define SKY_MODE_DGPS 3
 
 #endif /* _GPSD_SKY_H_ */
