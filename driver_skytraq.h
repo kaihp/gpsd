@@ -1,15 +1,16 @@
 /*
  * This file is Copyright (c) 2018 by the GPSD project
- * BSD terms apply: see the file COPYING in the distribution root for details
+ * SPDX-License-Identifier: BSD-2-clause
  */
 #ifndef _GPSD_SKY_H_
 #define _GPSD_SKY_H_
 
 /*
- * Commands accepted by Skytraq Venus638 & Venus838 chips
+ * Binary commands accepted by the Skytraq Venus638 & Venus838 Modules
  * References:
- * https://navspark.mybigcommerce.com/content/AN0028_1.4.42.pdf
- * http://www.skytraq.com.tw/datasheet/S1216V8_v0.9.pdf
+ * Venus6: https://cdn.sparkfun.com/datasheets/Sensors/GPS/AN0003_v1.4.19.pdf
+ * Venus8: https://navspark.mybigcommerce.com/content/AN0028_1.4.42.pdf
+ * S1216F: http://www.skytraq.com.tw/datasheet/S1216V8_v0.9.pdf
  * 
  * Message Format:
  * <Header><PL><Payload><CS><End of Sequence>
@@ -20,150 +21,155 @@
  *
  * Minimum packet length is 7 + payload.
  *
+ * The below data is as per AN0003_v1.4.19 & AN0028_1.4.42
  * Legend:
- * 6/8 : Accepted/used by Venus638/Venus838 firmware
+ * 6/8 : Accepted/used by Venus638/Venus838 firmware (? = unknown support)
  * Id  : MessageID in first payload byte
  * SID : Sub-Message ID (optional) in second payload byte
+ * Len : Payload length (not include header, checksum and End of Sequence)
  * Dir : Direction (input/output). Outputs have bit 7 set on Id/SID.
  * Name: Name of request/response
- * | 6 | 8 | Id   | SID  | Dir | Name                               |
- * |---|---|------|------|-----|------------------------------------|
- * |--- Input System Messages --------------------------------------|
- * | 6 | 8 | 0x01 |      | In  | System restart 
- * | 6 | 8 | 0x02 |      | In  | Query software version 
- * | 6 | 8 | 0x03 |      | In  | Query software CRC
- * | 6 | 8 | 0x04 |      | In  | Reset to factory defaults
- * | 6 | 8 | 0x05 |      | In  | Configure serial port
- * |   |   | 0x06 |      | In  | Reserved
- * |   |   | 0x07 |      | In  | Reserved
- * | 6 | 8 | 0x08 |      | In  | Configure NMEA
- * | 6 | 8 | 0x09 |      | In  | Configure message type
- * |   | 8 | 0x0B |      | In  | Software image download
- * | 6 | 8 | 0x0C |      | In  | Configure power mode
- * | 6 | 8 | 0x0E |      | In  | Configure position update rate
- * | 6 | 8 | 0x10 |      | In  | Query position update rate
- * | 6 | 8 | 0x11 |      | In  | Configure navigation data message interval |
- * |   | 8 | 0x15 |      | In  | Query power mode
- * |--- Input GNSS Messages ----------------------------------------|
- * | 6 | 8 | 0x29 |      | In  | Configure datum
- * | 6 | 8 | 0x2A |      | In  | Configure DOP mask
- * | 6 | 8 | 0x2B |      | In  | Configure elevation and CNR mask
- * | 6 | 8 | 0x2D |      | In  | Query datum
- * | 6 | 8 | 0x2E |      | In  | Query DOP mask
- * | 6 | 8 | 0x2F |      | In  | Query elevation and CNR mask
- * | 6 | 8 | 0x30 |      | In  | Get GPS ephemeris
- * | 6 |   | 0x31 |      | In  | Set GPS ephemeris (see 0x41 for Venus838 cmd)
- * | 6 |   | 0x37 |      | In  | Configure WAAS
- * | 6 |   | 0x38 |      | In  | Query WAAS status
- * | 6 | 8 | 0x39 |      | In  | Configure position pinning
- * | 6 | 8 | 0x3A |      | In  | Query position pinning
- * | 6 | 8 | 0x3B |      | In  | Configure position pinning parameters
- * | 6 |   | 0x3C |      | In  | Configuration navigation mode
- * | 6 |   | 0x3D |      | In  | Query navigation mode
- * | 6 |   | 0x3E |      | In  | Configure 1PPS mode
- * | 6 |   | 0x3F |      | In  | Query 1PPS mode
- * |   | 8 | 0x41 |      | In  | Set GPS ephemeris (see 0x31 for Venus638 cmd)
- * |   | 8 | 0x44 |      | In  | Query 1PPS timing
- * |   | 8 | 0x45 |      | In  | Configure 1PPS cable delay
- * |   | 8 | 0x46 |      | In  | Query 1PPS cable delay
- * |   | 8 | 0x4B |      | In  | Configure NMEA TalkerID
- * |   | 8 | 0x4F |      | In  | Query NMEA TalkerID
- * |   | 8 | 0x50 |      | In  | Get GPS Almanac
- * |   | 8 | 0x51 |      | In  | Set GPS Almanac
- * |   | 8 | 0x54 |      | In  | Configure 1PPS timing
- * |   | 8 | 0x5B |      | In  | Get GLONASS Ephemeris
- * |   | 8 | 0x5C |      | In  | Set GLONASS Ephemeris
- * |   | 8 | 0x5D |      | In  | Get GLONASS Almanac
- * |   | 8 | 0x5E |      | In  | Set GLONASS Almanac
- * |   | 8 | 0x5F |      | In  | Get GLONASS Time Correction Parameters
- * |   | 8 | 0x60 |      | In  | Set GLONASS Time Correction Parameters
- * |--- Messages with Sub-IDs -------------------------------------|
- * |   | 8 | 0x62 | 0x01 | In  | Configure SBAS
- * |   | 8 | 0x62 | 0x02 | In  | Query SBAS status
- * |   | 8 | 0x62 | 0x03 | In  | Configure QZSS
- * |   | 8 | 0x62 | 0x04 | In  | Query QZSS status
- * |   | 8 | 0x62 | 0x80 | Out | SBAS status
- * |   | 8 | 0x62 | 0x81 | Out | QZSS status
- * |   | 8 | 0x63 | 0x01 | In  | Configure SAEE
- * |   | 8 | 0x63 | 0x02 | In  | Query SAEE
- * |   | 8 | 0x63 | 0x80 | Out | SAEE status
- * |   | 8 | 0x64 | 0x01 | In  | Query boot status
- * |   | 8 | 0x64 | 0x02 | In  | Configure extended NMEA message interval
- * |   | 8 | 0x64 | 0x03 | In  | Query extended NMEA message interval
- * |   | 8 | 0x64 | 0x06 | In  | Configure interference detection
- * |   | 8 | 0x64 | 0x07 | In  | Query interference detection status
- * |   | 8 | 0x64 | 0x0A | In  | Configure GPS parameter search engine number
- * |   | 8 | 0x64 | 0x0B | In  | Query GPS parameter search engine number
- * |   | 8 | 0x64 | 0x11 | In  | Configure Position Fix Navigation Mask
- * |   | 8 | 0x64 | 0x12 | In  | Query Position Fix Navigation Mask
- * |   | 8 | 0x64 | 0x15 | In  | Configure UTC Reference Time Sync to GPS Time
- * |   | 8 | 0x64 | 0x16 | In  | Query UTC Reference Time Sync to GPS Time
- * |   | 8 | 0x64 | 0x17 | In  | Configure GNSS navigation mode
- * |   | 8 | 0x64 | 0x18 | In  | Query GNSS navigation mode
- * |   | 8 | 0x64 | 0x19 | In  | Configure GNSS constellation type for navigation solution
- * |   | 8 | 0x64 | 0x1A | In  | Query GNSS constellation type for navigation solution
- * |   | 8 | 0x64 | 0x1F | In  | Configure GPS/UTC leap seconds
- * |   | 8 | 0x64 | 0x20 | In  | Query GPS time
- * |   | 8 | 0x64 | 0x21 | In  | Configure PSTI Message Interval
- * |   | 8 | 0x64 | 0x22 | In  | Query PTSI Message Interval
- * |   | 8 | 0x64 | 0x27 | In  | Configure GNSS datum index
- * |   | 8 | 0x64 | 0x28 | In  | Query GNSS datum index
- * |   | 8 | 0x64 | 0x2F | In  | Configure GNSS Geo-Fencing Data
- * |   | 8 | 0x64 | 0x30 | In  | Query GNSS Geo-Fencing Data
- * |   | 8 | 0x64 | 0x7D | In  | Query Version Extension String
- * |   | 8 | 0x64 | 0x80 | Out | GNSS boot status
- * |   | 8 | 0x64 | 0x81 | Out | Extended NMEA message interval
- * |   | 8 | 0x64 | 0x83 | Out | Interference detection status
- * |   | 8 | 0x64 | 0x85 | Out | GPS parameter search engine number
- * |   | 8 | 0x64 | 0x88 | Out | Position Fix Navigation
- * |   | 8 | 0x64 | 0x8B | Out | GNSS navigation mode
- * |   | 8 | 0x64 | 0x8C | Out | GNSS constellation type for navigation solution
- * |   | 8 | 0x64 | 0x8E | Out | GPS time
- * |   | 8 | 0x64 | 0x8F | Out | PSTI Message Interval
- * |   | 8 | 0x64 | 0x92 | Out | GNSS datum index
- * |   | 8 | 0x64 | 0x96 | Out | GNSS Geo-Fencing Data
- * |   | 8 | 0x64 | 0x97 | Out | GNSS Geo-Fencing Result
- * |   | 8 | 0x64 | 0xFE | Out | Version Extension String
- * |   | 8 | 0x65 | 0x01 | In  | Configure 1PPS pulse width
- * |   | 8 | 0x65 | 0x02 | In  | Query 1PPS pulse width
- * |   | 8 | 0x65 | 0x03 | In  | Configure 1PPS frequency output
- * |   | 8 | 0x65 | 0x04 | In  | Query 1PPS frequency output
- * |   | 8 | 0x65 | 0x80 | Out | 1PPS pulse width
- * |   | 8 | 0x65 | 0x81 | Out | 1PPS frequency output
- * |   | 8 | 0x67 | 0x01 | In  | Set Beidou Ephemeris Data
- * |   | 8 | 0x67 | 0x02 | In  | Get Beidou Ephemeris Data
- * |   | 8 | 0x67 | 0x03 | In  | Set Beidou Almanac Data
- * |   | 8 | 0x67 | 0x04 | In  | Get Beidou Almanac Data
- * |   | 8 | 0x67 | 0x80 | Out | Beidou Ephemeris Data
- * |   | 8 | 0x67 | 0x81 | Out | Beidou Almanac Data
- * |   | 8 | 0x6A | 0x01 | In  | Configure RTK Mode
- * |   | 8 | 0x6A | 0x02 | In  | Query RTK Mode
- * |   | 8 | 0x6A | 0x80 | Out | RTK Mode
- * |--- Output System Messages -------------------------------------|
- * | 6 | 8 | 0x80 |      | In  | Software version
- * | 6 | 8 | 0x81 |      | In  | Software CRC
- * |   |   | 0x82 |      | In  | Reserved
- * | 6 | 8 | 0x83 |      | In  | ACK
- * | 6 | 8 | 0x84 |      | In  | NACK
- * | 6 | 8 | 0x86 |      | In  | Position update rate
- * |   | 8 | 0x90 |      | Out | GLONASS Ephemeris Data
- * |   | 8 | 0x91 |      | Out | GLONASS Almanac Data
- * |   | 8 | 0x92 |      | Out | Beidou Time Correction Parameters
- * | 6 | 8 | 0x93 |      | In  | GNSS NMEA TalkerID
- * |--- Output GNSS Messages ---------------------------------------|
- * | 6 | 8 | 0xA8 |      | Out | Navigation data message
- * | 6 | 8 | 0xAE |      | Out | GNSS datum
- * |   | 8 | 0xAF |      | Out | GNSS DOP mask
- * |   | 8 | 0xB0 |      | Out | Elevation and CNR mask
- * |   | 8 | 0xB1 |      | Out | GPS Ephemeris Data
- * | 6 |   | 0xB3 |      | Out | GNSS WAAS status
- * | 6 | 8 | 0xB4 |      | Out | GNSS position pinning status
- * | 6 |   | 0xB5 |      | Out | GPS navigation mode
- * | 6 |   | 0xB6 |      | Out | GPS 1PPS mode
- * |   | 8 | 0xB9 |      | Out | GNSS power mode
- * |   | 8 | 0xBB |      | Out | GNSS 1PPS cable delay
- * |   | 8 | 0xBE |      | Out | GPS Almanac Data
- * |   | 8 | 0xC2 |      | Out | GNSS 1PPS timing (only flash-based receivers)
+ * | 6 | 8 | Id   | SID  | Dir | Len | Name                               |
+ * |---|---|------|------|-----|-----|------------------------------------|
+ * |--- Input System Messages --------------------------------------------|
+ * | 6 | 8 | 0x01 |      | In  |  15 | System restart 
+ * | 6 | 8 | 0x02 |      | In  |   2 | Query software version 
+ * | 6 | 8 | 0x03 |      | In  |   2 | Query software CRC
+ * | 6 | 8 | 0x04 |      | In  |   2 | Reset to factory defaults
+ * | 6 | 8 | 0x05 |      | In  |   4 | Configure serial port
+ * |   |   | 0x06 |      | In  |     | Reserved
+ * |   |   | 0x07 |      | In  |     | Reserved
+ * | 6 | 8 | 0x08 |      | In  |   9 | Configure NMEA
+ * | 6 | 8 | 0x09 |      | In  | 2/3 | Configure message type (V6: 2B)
+ * |   | 8 | 0x0B |      | In  |   6 | Software image download
+ * | 6 | 8 | 0x0C |      | In  |   3 | Configure power mode
+ * | 6 | 8 | 0x0E |      | In  |   3 | Configure position update rate
+ * | 6 | 8 | 0x10 |      | In  |   1 | Query position update rate
+ * | ? | 8 | 0x11 |      | In  |   3 | Configure navigation data message interval
+ * |   | 8 | 0x15 |      | In  |   1 | Query power mode
+ * |--- Input GNSS Messages ----------------------------------------------|
+ * | 6 | 8 | 0x29 |      | In  |  19 | Configure datum
+ * | ? | 8 | 0x2A |      | In  |   9 | Configure DOP mask
+ * | ? | 8 | 0x2B |      | In  |   5 | Configure elevation and CNR mask
+ * | 6 | 8 | 0x2D |      | In  |   1 | Query datum
+ * | ? | 8 | 0x2E |      | In  |   1 | Query DOP mask
+ * | ? | 8 | 0x2F |      | In  |   1 | Query elevation and CNR mask
+ * | 6 | 8 | 0x30 |      | In  |   2 | Get GPS ephemeris
+ * | 6 |   | 0x31 |      | In  |  87 | Set GPS ephemeris (see 0x41 for Venus838 cmd)
+ * | 6 |   | 0x37 |      | In  |   3 | Configure WAAS
+ * | 6 |   | 0x38 |      | In  |   1 | Query WAAS status
+ * | 6 | 8 | 0x39 |      | In  | 2/3 | Configure position pinning (V6: 2B)
+ * | 6 | 8 | 0x3A |      | In  |   1 | Query position pinning
+ * | 6 | 8 | 0x3B |      | In  |  11 | Configure position pinning parameters
+ * | 6 |   | 0x3C |      | In  |   3 | Configuration navigation mode
+ * | 6 |   | 0x3D |      | In  |   1 | Query navigation mode
+ * | 6 |   | 0x3E |      | In  |   3 | Configure 1PPS mode
+ * | 6 |   | 0x3F |      | In  |   1 | Query 1PPS mode
+ * |   | 8 | 0x41 |      | In  |  87 | Set GPS ephemeris (see 0x31 for Venus638 cmd)
+ * |   | 8 | 0x44 |      | In  |   2 | Query 1PPS timing
+ * |   | 8 | 0x45 |      | In  |   6 | Configure 1PPS cable delay
+ * |   | 8 | 0x46 |      | In  |   1 | Query 1PPS cable delay
+ * |   | 8 | 0x4B |      | In  |   3 | Configure NMEA TalkerID
+ * |   | 8 | 0x4F |      | In  |   1 | Query NMEA TalkerID
+ * |   | 8 | 0x50 |      | In  |   2 | Get GPS Almanac
+ * |   | 8 | 0x51 |      | In  |  52 | Set GPS Almanac
+ * |   | 8 | 0x54 |      | In  |  31 | Configure 1PPS timing
+ * |   | 8 | 0x5B |      | In  |   2 | Get GLONASS Ephemeris
+ * |   | 8 | 0x5C |      | In  |  43 | Set GLONASS Ephemeris
+ * |   | 8 | 0x5D |      | In  |   2 | Get GLONASS Almanac
+ * |   | 8 | 0x5E |      | In  |  26 | Set GLONASS Almanac
+ * |   | 8 | 0x5F |      | In  |   2 | Get GLONASS Time Correction Parameters
+ * |   | 8 | 0x60 |      | In  |  10 | Set GLONASS Time Correction Parameters
+ * |--- Messages with Sub-IDs -------------------------------------------|
+ * |   | 8 | 0x62 | 0x01 | In  |   9 | Configure SBAS
+ * |   | 8 | 0x62 | 0x02 | In  |   2 | Query SBAS status
+ * |   | 8 | 0x62 | 0x03 | In  |   5 | Configure QZSS
+ * |   | 8 | 0x62 | 0x04 | In  |   2 | Query QZSS status
+ * |   | 8 | 0x62 | 0x80 | Out |   8 | SBAS status
+ * |   | 8 | 0x62 | 0x81 | Out |   4 | QZSS status
+ * |   | 8 | 0x63 | 0x01 | In  |   4 | Configure SAEE
+ * |   | 8 | 0x63 | 0x02 | In  |   2 | Query SAEE
+ * |   | 8 | 0x63 | 0x80 | Out |   3 | SAEE status
+ * |   | 8 | 0x64 | 0x01 | In  |   2 | Query boot status
+ * |   | 8 | 0x64 | 0x02 | In  |  15 | Configure extended NMEA message interval
+ * |   | 8 | 0x64 | 0x03 | In  |   2 | Query extended NMEA message interval
+ * |   | 8 | 0x64 | 0x06 | In  |   4 | Configure interference detection
+ * |   | 8 | 0x64 | 0x07 | In  |   2 | Query interference detection status
+ * |   | 8 | 0x64 | 0x0A | In  |   4 | Configure GPS parameter search engine number
+ * |   | 8 | 0x64 | 0x0B | In  |   2 | Query GPS parameter search engine number
+ * |   | 8 | 0x64 | 0x11 | In  |   5 | Configure Position Fix Navigation Mask
+ * |   | 8 | 0x64 | 0x12 | In  |   2 | Query Position Fix Navigation Mask
+ * |   | 8 | 0x64 | 0x15 | In  |   8 | Configure UTC Reference Time Sync to GPS Time
+ * |   | 8 | 0x64 | 0x16 | In  |   2 | Query UTC Reference Time Sync to GPS Time
+ * |   | 8 | 0x64 | 0x17 | In  |   4 | Configure GNSS navigation mode
+ * |   | 8 | 0x64 | 0x18 | In  |   2 | Query GNSS navigation mode
+ * |   | 8 | 0x64 | 0x19 | In  |   5 | Configure GNSS constellation type for navigation solution
+ * |   | 8 | 0x64 | 0x1A | In  |   2 | Query GNSS constellation type for navigation solution
+ * |   | 8 | 0x64 | 0x1F | In  |   4 | Configure GPS/UTC leap seconds
+ * |   | 8 | 0x64 | 0x20 | In  |   2 | Query GPS time
+ * |   | 8 | 0x64 | 0x21 | In  |   5 | Configure PSTI Message Interval
+ * |   | 8 | 0x64 | 0x22 | In  |   3 | Query PTSI Message Interval
+ * |   | 8 | 0x64 | 0x27 | In  |   5 | Configure GNSS datum index
+ * |   | 8 | 0x64 | 0x28 | In  |   2 | Query GNSS datum index
+ * |   | 8 | 0x64 | 0x2F | In  | var | Configure GNSS Geo-Fencing Data PL=4+n*16 (n=1..10)
+ * |   | 8 | 0x64 | 0x30 | In  |   2 | Query GNSS Geo-Fencing Data
+ * |   | 8 | 0x64 | 0x31 | In  |   2 | Query GNSS Geo-Fencing Result
+ * |   | 8 | 0x64 | 0x7D | In  |   2 | Query Version Extension String
+ * |   | 8 | 0x64 | 0x80 | Out |   4 | GNSS boot status
+ * |   | 8 | 0x64 | 0x81 | Out |  14 | Extended NMEA message interval
+ * |   | 8 | 0x64 | 0x83 | Out |   4 | Interference detection status
+ * |   | 8 | 0x64 | 0x85 | Out |   3 | GPS parameter search engine number
+ * |   | 8 | 0x64 | 0x88 | Out |   5 | Position Fix Navigation
+ * |   | 8 | 0x64 | 0x8A | Out |   7 | GPS UTC Reference Time
+ * |   | 8 | 0x64 | 0x8B | Out |   3 | GNSS navigation mode
+ * |   | 8 | 0x64 | 0x8C | Out |   4 | GNSS constellation type for navigation solution
+ * |   | 8 | 0x64 | 0x8E | Out |  15 | GPS time
+ * |   | 8 | 0x64 | 0x8F | Out |   3 | PSTI Message Interval
+ * |   | 8 | 0x64 | 0x92 | Out |   5 | GNSS datum index
+ * |   | 8 | 0x64 | 0x96 | Out | var | GNSS Geo-Fencing Data PL=3+n*16 (n=1..10)
+ * |   | 8 | 0x64 | 0x97 | Out |  19 | GNSS Geo-Fencing Result
+ * |   | 8 | 0x64 | 0xFE | Out |  34 | Version Extension String
+ * |   | 8 | 0x65 | 0x01 | In  |   7 | Configure 1PPS pulse width
+ * |   | 8 | 0x65 | 0x02 | In  |   3 | Query 1PPS pulse width
+ * |   | 8 | 0x65 | 0x03 | In  |   7 | Configure 1PPS frequency output
+ * |   | 8 | 0x65 | 0x04 | In  |   2 | Query 1PPS frequency output
+ * |   | 8 | 0x65 | 0x80 | Out |   6 | 1PPS pulse width
+ * |   | 8 | 0x65 | 0x81 | Out |   6 | 1PPS frequency output
+ * |   | 8 | 0x67 | 0x01 | In  | var | Set Beidou Ephemeris Data PL=126/87
+ * |   | 8 | 0x67 | 0x02 | In  |   3 | Get Beidou Ephemeris Data
+ * |   | 8 | 0x67 | 0x03 | In  |  53 | Set Beidou Almanac Data
+ * |   | 8 | 0x67 | 0x04 | In  |   3 | Get Beidou Almanac Data
+ * |   | 8 | 0x67 | 0x80 | Out | var | Beidou Ephemeris Data PL=126/87
+ * |   | 8 | 0x67 | 0x81 | Out |  53 | Beidou Almanac Data
+ * |   | 8 | 0x6A | 0x01 | In  |   4 | Configure RTK Mode
+ * |   | 8 | 0x6A | 0x02 | In  |   3 | Query RTK Mode
+ * |   | 8 | 0x6A | 0x80 | Out |   3 | RTK Mode
+ * |--- Output System Messages -------------------------------------------|
+ * | 6 | 8 | 0x80 |      | Out |  14 | Software version
+ * | 6 | 8 | 0x81 |      | Out |   4 | Software CRC
+ * |   |   | 0x82 |      | Out |     | Reserved
+ * | 6 | 8 | 0x83 |      | Out |   2 | ACK
+ * | 6 | 8 | 0x84 |      | Out |   2 | NACK
+ * |   | 8 | 0x85 |      | Out |   5 | <undocumented message from FW v2.2.4>
+ * | 6 | 8 | 0x86 |      | Out |   2 | Position update rate
+ * |   | 8 | 0x90 |      | Out |  43 | GLONASS Ephemeris Data
+ * |   | 8 | 0x91 |      | Out |  25 | GLONASS Almanac Data
+ * |   | 8 | 0x92 |      | Out |   9 | Beidou Time Correction Parameters
+ * | ? | 8 | 0x93 |      | Out |   2 | GNSS NMEA TalkerID
+ * |--- Output GNSS Messages ---------------------------------------------|
+ * | ? | 8 | 0xA8 |      | Out |  59 | Navigation data message
+ * | 6 | 8 | 0xAE |      | Out |   3 | GNSS datum
+ * |   | 8 | 0xAF |      | Out |   8 | GNSS DOP mask
+ * |   | 8 | 0xB0 |      | Out |   4 | Elevation and CNR mask
+ * | 6 | 8 | 0xB1 |      | Out |  87 | GPS Ephemeris Data
+ * | 6 |   | 0xB3 |      | Out |   2 | GNSS WAAS status
+ * | 6 | 8 | 0xB4 |      | Out |2/12 | GNSS position pinning status V6:2B/V8:12B
+ * | 6 |   | 0xB5 |      | Out |   2 | GPS navigation mode
+ * | 6 |   | 0xB6 |      | Out |   2 | GPS 1PPS mode
+ * |   | 8 | 0xB9 |      | Out |   2 | GNSS power mode
+ * |   | 8 | 0xBB |      | Out |   5 | GNSS 1PPS cable delay
+ * |   | 8 | 0xBE |      | Out |  52 | GPS Almanac Data
+ * |   | 8 | 0xC2 |      | Out |  35 | GNSS 1PPS timing (only flash-based receivers)
  */
 
 typedef enum {
@@ -218,6 +224,7 @@ typedef enum {
 	SKY_RESP_SW_CRC          = 0x81,
 	SKY_RESP_ACK             = 0x83,
 	SKY_RESP_NACK            = 0x84,
+	SKY_RESP_85              = 0x85,
 	SKY_RESP_POS_UPD_RATE    = 0x86,
 	SKY_RESP_NMEA_TALKER     = 0x93,
 	/* Output GNSS Messages */
@@ -261,6 +268,8 @@ typedef enum {
 	SKY_64_QUERY_INTERFER_DET    = 0x07,
 	SKY_64_CONFIG_PARAM_ENG_NUM  = 0x0A,
 	SKY_64_QUERY_PARAM_ENG_NUM   = 0x0B,
+	SKY_64_CONFIG_GPS_UTC_TIME   = 0x15,
+	SKY_64_QUERY_GPS_UTC_TIME    = 0x16,
 	SKY_64_CONFIG_NAV_MODE       = 0x17,
 	SKY_64_QUERY_NAV_MODE        = 0x18,
 	SKY_64_CONFIG_CONSTEL_TYPE   = 0x19,
@@ -276,6 +285,7 @@ typedef enum {
 	SKY_64_RESP_EXT_NMEA_INTVL   = 0x81,
 	SKY_64_RESP_INTERFER_DET     = 0x83,
 	SKY_64_RESP_PARAM_ENG_NUM    = 0x85,
+	SKY_64_RESP_GPS_UTC_REF_TIME = 0x8A,
 	SKY_64_RESP_NAV_TYPE         = 0x8B,
 	SKY_64_RESP_CONSTEL_TYPE     = 0x8C,
 	SKY_64_RESP_GNSS_TIME        = 0x8E,
