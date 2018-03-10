@@ -1635,7 +1635,7 @@ static gps_mask_t processPSTI(int count, char *field[],
     mask = ONLINE_SET;
 
     if ( 0 != strncmp(session->subtype, "Skytraq", 7) ) {
-	/* this is skytraq, but marked yet, so probe for Skytraq */
+	/* this is skytraq, but not marked yet, so probe for SW version */
 	(void)gpsd_write(session, "\xA0\xA1\x00\x02\x02\x01\x03\x0d\x0a",9);
     }
 
@@ -1658,7 +1658,7 @@ static gps_mask_t processPSTI(int count, char *field[],
 	/* Unknown message sent by S1216/Venus8 FW v2.2.4 */
 	/* Seen: 003,[123] */
 	gpsd_log(&session->context->errout, LOG_DATA,
-		 "PSTI,003: value: %d\n", atoi(field[2]));
+		 "PSTI,003: Value: %d\n", atoi(field[2]));
 	return mask;
     }
     if (0 == strcmp("005", field[1])) {
@@ -1729,6 +1729,30 @@ static gps_mask_t processSTI(int count, char *field[],
 
     return mask;
 }
+
+/*
+ * Skytraq undocumented Datum sentences take this format:
+ * $GPDTM,W84,,0.000000,N,0.000000,E,0.000000,W84*5F
+ */
+static gps_mask_t processGPDTM(int count UNUSED, char *field[] UNUSED,
+			       struct gps_device_t *session UNUSED)
+/* Datum reporting cycle - currently ignored */
+{
+    /* Set something, so it won't look like an unknown sentence */
+    return ONLINE_SET;
+}
+
+/*
+ * Skytraq undocumented GRS sentences take this format:
+ * $GPGRS,193832.000,0,-0.16,-1.57,15.37,-11.50,-39.18,2.94,,,,,,*40
+ */
+static gps_mask_t processGPGRS(int count UNUSED, char *field[] UNUSED,
+			       struct gps_device_t *session UNUSED)
+/* Datum reporting cycle - currently ignored */
+{
+    /* Set something, so it won't look like an unknown sentence */
+    return ONLINE_SET;
+}
 #endif /* SKYTRAQ_ENABLE */
 
 /**************************************************************************
@@ -1785,7 +1809,7 @@ gps_mask_t nmea_parse(char *sentence, struct gps_device_t * session)
 #endif /* ASHTECH_ENABLE */
 #ifdef MTK3301_ENABLE
 	{"PMTK", 3,  false, processMTK3301},
-        /* for some reason thhe parser no longer triggering on leading chars */
+        /* for some reason the parser no longer triggering on leading chars */
 	{"PMTK001", 3,  false, processMTK3301},
 	{"PMTK424", 3,  false, processMTK3301},
 	{"PMTK705", 3,  false, processMTK3301},
@@ -1795,8 +1819,10 @@ gps_mask_t nmea_parse(char *sentence, struct gps_device_t * session)
 	{"PTNTA", 8, false, processTNTA},
 #endif /* TNT_ENABLE */
 #ifdef SKYTRAQ_ENABLE
-	{"PSTI", 2, false, processPSTI},	/* $PSTI Skytraq */
-	{"STI", 2, false, processSTI},		/* $STI  Skytraq */
+	{"PSTI", 2, false, processPSTI},	/* $PSTI  Skytraq */
+	{"STI", 2, false, processSTI},		/* $STI   Skytraq */
+	{"GPDTM", 0, false, processGPDTM},	/* $GPDTM Skytraq */
+	{"GPGRS", 0, false, processGPGRS},	/* $GPGRS Skytraq */
 #endif /* SKYTRAQ_ENABLE */
 	{"RMC", 8,  false, processRMC},
 	{"TXT", 5,  false, processTXT},
@@ -1837,7 +1863,7 @@ gps_mask_t nmea_parse(char *sentence, struct gps_device_t * session)
     if (*p == '*')
 	*p++ = ',';		/* otherwise we drop the last field */
 #ifdef SKYTRAQ_ENABLE_UNUSED
-    /* $STI is special, no trailing *, or chacksum */
+    /* $STI is special, no trailing *, or checksum */
     if ( 0 != strncmp( "STI,", sentence, 4) ) {
 	skytraq_sti = true;
 	*p++ = ',';		/* otherwise we drop the last field */
