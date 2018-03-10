@@ -713,7 +713,7 @@ static void update_gps_panel(struct gps_data_t *gpsdata)
 
     if ( raw_flag) {
         /* Be quiet if the user requests silence. */
-        if (!silent_flag && (s = gps_data(gpsdata)) != NULL) {
+      if (!silent_flag && (s = (char *) gps_data(gpsdata)) != NULL) {
             char *p, *pe;
 
             /* make a copy of the const char *, then trim trailing spaces */
