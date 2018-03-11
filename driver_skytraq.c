@@ -36,7 +36,7 @@ static void sky_configure(struct gps_device_t *);
 static void sky_deactivate(struct gps_device_t *);
 static gps_mask_t sky_msg_sw_ver(struct gps_device_t *, unsigned char *, size_t);
 static gps_mask_t sky_msg_sw_crc(struct gps_device_t *, unsigned char *, size_t);
-static gps_mask_t sky_msg_nav_data_msg(struct gps_device_t *, unsigned char *, size_t);
+static gps_mask_t sky_msg_nav_data(struct gps_device_t *, unsigned char *, size_t);
 static gps_mask_t sky_msg_gnss_time(struct gps_device_t *, unsigned char *, size_t);
 static gps_mask_t sky_msg_gps_utc_time(struct gps_device_t *, unsigned char *, size_t);
 
@@ -120,7 +120,10 @@ static void sky_init_query(struct gps_device_t *session)
 	SKY_QUERY_SW_VER, 0x01,
 	0x00, SKY_END_1, SKY_END_2
     };
-    (void)sky_write(session,msg);
+    if (0 != strncmp(session->subtype, "Skytraq", 7) ) {
+	/* If not marked as Skytraq yet, send a probe */
+	(void)sky_write(session,msg);
+    }
 }
 
 /* Main event handler */
@@ -155,7 +158,7 @@ static void sky_configure(struct gps_device_t *session)
 	     "Skytraq configuration\n");
 
     if (0 != strncmp(session->subtype, "Skytraq", 7)) {
-	/* Query FW version if previously undetected */
+	/* Query FW version if Skytraq not detected */
       gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_QUERY_SW_VER\n");
       msg[3] = 2;
       msg[4] = SKY_QUERY_SW_VER;
@@ -458,7 +461,7 @@ static gps_mask_t sky_msg_sw_ver(struct gps_device_t *session,
     rev_dd  = getub(buf, 13);
 
     (void)snprintf(session->subtype, sizeof(session->subtype) - 1,
-	     "kver=%u.%u.%u, over=%u.%u.%u, rev=%02u.%02u.%02u",
+	     "Skytraq: kver=%u.%u.%u, over=%u.%u.%u, rev=%02u.%02u.%02u",
 	    kver_x, kver_y, kver_z,
 	    over_x, over_y, over_z,
 	    rev_yy, rev_mm, rev_dd);
@@ -550,7 +553,7 @@ static gps_mask_t sky_msg_boot_status(struct gps_device_t *session, unsigned cha
  * mean sea level altitude, gdop, pdop, hdop, vdop, tdop,
  * ecef.{x,y,z}, ecef_v.{x,y,z}
  */
-static gps_mask_t sky_msg_nav_data_msg(struct gps_device_t *session,
+static gps_mask_t sky_msg_nav_data(struct gps_device_t *session,
 				       unsigned char *buf, size_t len)
 {
     unsigned char  navmode;	/* Navigation fix mode (0: No fix, 1: 2D, 2: 3D, 3: 3D+DGNSS */
@@ -1080,7 +1083,7 @@ static gps_mask_t sky_parse(struct gps_device_t * session, unsigned char *buf,
 	}	  
 	break;
     case SKY_RESP_NAV_DATA_MSG:
-	return sky_msg_nav_data_msg(session, buf, len);
+	return sky_msg_nav_data(session, buf, len);
     case SKY_MSGID_62:
 	/* FALL-THROUGH */
     case SKY_MSGID_63:
