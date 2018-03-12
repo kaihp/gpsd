@@ -211,6 +211,10 @@ static speed_t gpsd_get_speed_termios(const struct termios *ttyctl)
 	return (115200);
     case B230400:
 	return (230400);
+    case B460800:
+	return (460800);
+    case B921600:
+	return (921600);
     default: /* B0 */
 	return 0;
     }
@@ -289,9 +293,18 @@ void gpsd_set_speed(struct gps_device_t *session,
 	rate = B57600;
     else if (speed < 230400)
 	rate = B115200;
+#if 0
     else
 	rate = B230400;
-
+#else
+    /* Not all systems can do this, but at least the Raspberry Pi 3 can */
+    else if (speed < 460800)
+	rate = B230400;
+    else if (speed < 921600)
+	rate = B460800;
+    else
+	rate = B921600;
+#endif
     if (rate != cfgetispeed(&session->ttyset)
 	|| parity != session->gpsdata.dev.parity
 	|| stopbits != session->gpsdata.dev.stopbits) {
@@ -676,8 +689,11 @@ bool gpsd_next_hunt_setting(struct gps_device_t * session)
 #else
 	/* every rate we're likely to see on a GPS */
 	static unsigned int rates[] =
+#if 0
 	    { 0, 4800, 9600, 19200, 38400, 57600, 115200, 230400};
-
+#else
+	    { 0, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600};
+#endif
 	if (session->baudindex++ >=
 	    (unsigned int)(sizeof(rates) / sizeof(rates[0])) - 1) {
 	    session->baudindex = 0;
