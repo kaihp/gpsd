@@ -1636,6 +1636,7 @@ static gps_mask_t processPSTI(int count, char *field[],
 
     if ( 0 != strncmp(session->subtype, "Skytraq", 7) ) {
 	/* this is skytraq, but not marked yet, so probe for SW version */
+	(void)nmea_send(session, "$Skytraq"); /* ZBTcom S1216 magic cookie */
 	(void)gpsd_write(session, "\xA0\xA1\x00\x02\x02\x01\x03\x0d\x0a",9);
     }
 
@@ -1715,6 +1716,7 @@ static gps_mask_t processSTI(int count, char *field[],
 
     if ( 0 != strncmp(session->subtype, "Skytraq", 7) ) {
 	/* this is skytraq, but marked yet, so probe for Skytraq */
+	(void)nmea_send(session, "$Skytraq"); /* ZBTcom S1216 magic cookie */
 	(void)gpsd_write(session, "\xA0\xA1\x00\x02\x02\x01\x03\x0d\x0a",9);
     }
 
