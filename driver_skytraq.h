@@ -177,7 +177,7 @@ typedef enum {
 	SKY_RESTART              = 0x01,
 	SKY_QUERY_SW_VER         = 0x02,
 	SKY_QUERY_SW_CRC         = 0x03,
-	SKY_FACTORY_RST          = 0x04,
+	SKY_FACTORY_RESET        = 0x04,
 	SKY_CONFIG_SERIAL        = 0x05,
 	SKY_CONFIG_NMEA          = 0x08,
 	SKY_CONFIG_MSG_TYPE      = 0x09,
