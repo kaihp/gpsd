@@ -1115,6 +1115,8 @@ static gps_mask_t sky_dispatch(struct gps_device_t * session, unsigned char *buf
     if (len == 0)
 	return mask;
 
+    session->cycle_end_reliable = true;
+
     /* check the checksum */
     pl = getbeu16(buf, 2);
     for(i=0; i<pl; i++)
