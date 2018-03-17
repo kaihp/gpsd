@@ -129,7 +129,7 @@ static bool sky_write(struct gps_device_t *session, unsigned char *msg)
 static bool sky_probe_detect(struct gps_device_t *session)
 {
     sky_init_query(session);
-    sky_sleep(10000); /* Wait 10msec for a reply */
+    sky_sleep(100000); /* Wait 100msec for a reply */
     return !strncmp(session->subtype, "Skytraq", 7);
 }
 
@@ -285,15 +285,15 @@ static void sky_configure(struct gps_device_t *session, int hard)
 	msg[ 6] = 10;	/* GGA Interval */
 	msg[ 7] = 10;	/* GSA Interval */
 	msg[ 8] = 10;	/* GSV Interval */
-	msg[ 9] = 1;	/* GLL Interval */
+	msg[ 9] = 0;	/* GLL Interval */
 	msg[10] = 1;	/* RMC Interval */
 	msg[11] = 0;	/* VTG Interval: disable */
 	msg[12] = 10;	/* ZDA Interval */
-	msg[13] = 10;	/* GNS Interval: ? */
-	msg[14] = 10;	/* GBS Interval */
+	msg[13] = 0;	/* GNS Interval: ? */
+	msg[14] = 0;	/* GBS Interval */
 	msg[15] = 0;	/* GRS Interval: ? */
 	msg[16] = 0;	/* DTM Interval: disable */
-	msg[17] = 10;	/* GST Interval */
+	msg[17] = 0;	/* GST Interval */
 	msg[18] = 0;	/* Update to: SRAM */
 	(void)sky_write(session, msg);
 	/* $PSTI Message Interval */
@@ -324,11 +324,13 @@ static void sky_configure(struct gps_device_t *session, int hard)
     /*
      * Turn off NMEA output, turn on Skytraq binary mode on this port.
      */
+#if 0
     if (session->mode == O_OPTIMIZE) {
       sky_mode(session, MODE_BINARY);
     } else {
       sky_mode(session, MODE_NMEA);
     }
+#endif /* 0 */
 #endif /* RECONFIGURE_ENABLE */
     return;
 }
@@ -671,7 +673,7 @@ static gps_mask_t sky_msg_nav_data(struct gps_device_t *session,
     week = getbeu16(buf,  3);
     ftow = getbeu32(buf,  5)/100.0;
     session->newdata.time = gpsd_gpstime_resolve(session, week, ftow);
-    mask |= TIME_SET;
+    mask |= TIME_SET | NTPTIME_IS;
     session->newdata.ecef.x  = getbes32(buf, 35) / 100.0;
     session->newdata.ecef.y  = getbes32(buf, 39) / 100.0;
     session->newdata.ecef.z  = getbes32(buf, 43) / 100.0;
@@ -755,24 +757,20 @@ static gps_mask_t sky_msg_gps_utc_time(struct gps_device_t *session,
 
     if (7 != len) {
 	gpsd_log(&session->context->errout, LOG_WARN,
-	       "Skytraq: SKY_RESP_GPS_UTC_REF_TIME returned illegal length %d\n", len);
+		 "Skytraq: SKY_RESP_GPS_UTC_REF_TIME returned illegal length %d\n", len);
 	return 0;
     }
     inval = getub(buf, 2);
     year  = getbeu16(buf, 3);
     month = getub(buf, 5);
     day   = getub(buf, 6);
-    if (inval || !year || !month || !day) {
-      /* not valid, return */
-      gpsd_log(&session->context->errout, LOG_PROG,
-	       "Skytraq: received invalid GPS UTC date (%04d-%02d-%02d)\n",
-	       year,month,day);
-      return ONLINE_SET;
+    if (!inval && year && month && day) {
+	/* Only update if we got good data */
+	gpsd_century_update(session, year - (year % 100));
+	gpsd_log(&session->context->errout, LOG_DATA,
+		 "Skytraq: received GPS UTC date: %04d-%02d-%02d\n",
+		 year, month, day);
     }
-    gpsd_century_update(session, year - (year % 100));
-    gpsd_log(&session->context->errout, LOG_DATA,
-	     "Skytraq: received GPS UTC date: %04d-%02d-%02d\n",
-	     year, month, day);
     return ONLINE_SET;
 }
 

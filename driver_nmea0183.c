@@ -1753,7 +1753,7 @@ static gps_mask_t processGPDTM(int count UNUSED, char *field[] UNUSED,
 
 static gps_mask_t processGPGRS(int count UNUSED, char *field[] UNUSED,
 			       struct gps_device_t *session UNUSED)
-/* GPS Range Residuala - currently ignored */
+/* GPS Range Residuals - currently ignored */
 {
     /*
      * GRS,193832.000,0,-0.16,-1.57,15.37,-11.50,-39.18,2.94,,,,,,*40
