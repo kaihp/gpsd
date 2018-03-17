@@ -31,7 +31,7 @@
 #define SKY_RETRY_TIME	6
 #define SKY_CHANNELS	48	/* max channels allowed in format */
 
-static gps_mask_t sky_parse(struct gps_device_t *, unsigned char *, size_t);
+static gps_mask_t sky_dispatch(struct gps_device_t *, unsigned char *, size_t);
 static void sky_configure(struct gps_device_t *, int);
 static void sky_deactivate(struct gps_device_t *);
 static gps_mask_t sky_msg_sw_ver(struct gps_device_t *, unsigned char *, size_t);
@@ -48,10 +48,14 @@ static gps_mask_t sky_msg_E0(struct gps_device_t *, unsigned char *, size_t);
 static gps_mask_t sky_msg_E2(struct gps_device_t *, unsigned char *, size_t);
 static gps_mask_t sky_msg_E3(struct gps_device_t *, unsigned char *, size_t);
 
+static ssize_t sky_control_send(struct gps_device_t *, char *, size_t);
 static bool sky_write(struct gps_device_t *session, unsigned char *msg);
+static bool sky_probe_detect(struct gps_device_t *session);
 static bool sky_speed(struct gps_device_t *session, speed_t speed, char parity, int stopbits);
 static void sky_mode(struct gps_device_t *session, int mode);
 static bool sky_rate(struct gps_device_t *session, double cycletime);
+
+static void sky_init_query(struct gps_device_t *);
 
 static int skytraq_detected = 0;
 static int config_in_progress = 0;
@@ -116,9 +120,19 @@ static bool sky_write(struct gps_device_t *session, unsigned char *msg)
 	gpsd_log(&session->context->errout, LOG_LOUD,
 		 "=> GPS: Skytraq sending MID=0x%02x: %s\n", mid,
 		 gpsd_packetdump(hex, sizeof(hex)-1, (char *)msg, len+7));
+    /* Copy to public assembly buffer for gpsmon snooping */
+    session->msgbuflen = len+7;
+    (void)memcpy(session->msgbuf, msg, len+7);
     ok = (gpsd_write(session, (const char *)msg, len+7) == (ssize_t) (len+7));
 
     return (ok);
+}
+
+static bool sky_probe_detect(struct gps_device_t *session)
+{
+    sky_init_query(session);
+    sky_sleep(10000); /* Wait 10msec for a reply */
+    return !strncmp(session->subtype, "Skytraq", 7);
 }
 
 /* Ask for the FW/OEM version of the GPS, without modifying any state/settings */
@@ -146,15 +160,12 @@ static void sky_event_hook(struct gps_device_t *session, event_t event)
     if (session->context->readonly)
 	return;
     if (event == event_wakeup) {
-	/* Auto-baud event; don't go below 19200 */
-	if (session->gpsdata.dev.baudrate > 9600) {
-	    gpsd_log(&session->context->errout, LOG_LOUD, "sky_event_hook(event_wakeup)\n");
-	    sky_speed(session, session->gpsdata.dev.baudrate,
-		      session->gpsdata.dev.parity, session->gpsdata.dev.stopbits);
-	}
+	/* No action required */
+	gpsd_log(&session->context->errout, LOG_PROG, "sky_event_hook(event_wakeup) %d baud\n",
+		 session->gpsdata.dev.baudrate);
     } else if (event == event_triggermatch) {
 	/* If NMEA sees the .trigger string */
-	gpsd_log(&session->context->errout, LOG_LOUD, "sky_event_hook(event_triggermatch)\n");
+	gpsd_log(&session->context->errout, LOG_PROG, "sky_event_hook(event_triggermatch)\n");
     } else if (event == event_identified) {
 	/* Skytraq GNSS receiver positively detected */
 	gpsd_log(&session->context->errout, LOG_LOUD, "sky_event_hook(event_identified)\n");
@@ -209,6 +220,7 @@ static void sky_configure(struct gps_device_t *session, int hard)
     msg[4] = SKY_MSGID_64;
     msg[5] = SKY_64_QUERY_VERSION_EXT;
     (void)sky_write(session, msg);
+#if 0
     /* Query FW checksum */
     gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_QUERY_SW_CRC\n");
     msg[3] = 2;
@@ -217,6 +229,7 @@ static void sky_configure(struct gps_device_t *session, int hard)
     (void)sky_write(session, msg);
     /* Skytraq does an online computation of the CRC, so wait 800ms + some more */
     sky_sleep(1000000);
+#endif
     /* Query boot status */
     gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_64_QUERY_BOOT_STATUS\n");
     msg[3] = 2;
@@ -245,7 +258,7 @@ static void sky_configure(struct gps_device_t *session, int hard)
     (void)sky_write(session, msg);
     sky_sleep(100000); /* testing if Skytraq needs a delay here... */
 #ifdef RECONFIGURE_ENABLE
-    /* Enable SBAS mode (not sure what it does, but UBX driver enables it) */
+    /* Enable SBAS mode (Satellite Based Augmented System) */
     gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_62_CONFIG_SBAS=1,2,8,1,3,7\n");
     msg[ 3] = 9;
     msg[ 4] = SKY_MSGID_62;
@@ -254,9 +267,9 @@ static void sky_configure(struct gps_device_t *session, int hard)
     msg[ 7] = 0x02;	/* Ranging: auto */
     msg[ 8] = 0x08;	/* Ranging URA Mask: default */
     msg[ 9] = 0x01;	/* Correction: enable */
-    msg[10] = 0x03;	/* Tracking channels: 3 */
+    msg[10] = 0x01;	/* Tracking channels: 1 */
     msg[11] = 0x07;	/* Subsystem mask: MSAS|EGNOS|WAAS */
-    msg[12] = 0x00;	/* Update to: SRAMM */
+    msg[12] = 0x00;	/* Update to: SRAM */
     (void)sky_write(session, msg);
     /* Enable QZSS, 1 ch */
     gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_62_CONFIG_QZSS=1,1\n");
@@ -323,7 +336,7 @@ static void sky_configure(struct gps_device_t *session, int hard)
     (void)sky_write(session, msg);
 
     /*
-     * Turn off NMEA output, turn on Skytraq on this port.
+     * Turn off NMEA output, turn on Skytraq binary mode on this port.
      */
     if (session->mode == O_OPTIMIZE) {
       sky_mode(session, MODE_BINARY);
@@ -394,6 +407,7 @@ static void sky_mode(struct gps_device_t *session, int mode)
 	0x00, SKY_END_1, SKY_END_2};
     if (mode == MODE_NMEA) msg[5] = 0x01;
     if (mode == MODE_BINARY) msg[5] = 0x02;
+    session->back_to_nmea = (mode == MODE_NMEA);
     gpsd_log(&session->context->errout, LOG_LOUD,
 	     "Skytraq: setting MODE=%s\n", (mode==MODE_BINARY) ? "BINary" : "NMEA");
     (void)sky_write(session, msg);
@@ -621,7 +635,7 @@ static gps_mask_t sky_msg_nav_data(struct gps_device_t *session,
 {
     unsigned char  navmode;	/* Navigation fix mode (0: No fix, 1: 2D, 2: 3D, 3: 3D+DGNSS */
     unsigned short week;	/* GNSS week number */
-    double   ftow;		/* Time of Week */
+    double   ftow;		/* Time of week */
     int *mode = &session->newdata.mode;
     int *status = &session->gpsdata.status;
     gps_mask_t mask = 0;
@@ -669,21 +683,9 @@ static gps_mask_t sky_msg_nav_data(struct gps_device_t *session,
     session->gpsdata.satellites_used = getub(buf, 2);
     mask |= ONLINE_SET | SATELLITE_SET;
     week = getbeu16(buf,  3);
-    ftow  = getleu32(buf,  5)/1000.0;
+    ftow = getbeu32(buf,  5)/100.0;
     session->newdata.time = gpsd_gpstime_resolve(session, week, ftow);
     mask |= TIME_SET;
-    session->newdata.latitude  = 1e-7 * getbes32(buf,  9);
-    session->newdata.longitude = 1e-7 * getbes32(buf, 13);
-    session->newdata.altitude  = 1e-2 * getbes32(buf, 21);
-    mask |= LATLON_SET | ALTITUDE_SET;
-    // ealt = getbeu32(buf, 17);
-    // salt = getbeu32(buf, 21);
-    session->gpsdata.dop.gdop = getbeu16(buf, 25);
-    session->gpsdata.dop.pdop = getbeu16(buf, 27);
-    session->gpsdata.dop.hdop = getbeu16(buf, 29);
-    session->gpsdata.dop.vdop = getbeu16(buf, 31);
-    session->gpsdata.dop.tdop = getbeu16(buf, 33);
-    mask |= DOP_SET;
     session->newdata.ecef.x  = getbes32(buf, 35) / 100.0;
     session->newdata.ecef.y  = getbes32(buf, 39) / 100.0;
     session->newdata.ecef.z  = getbes32(buf, 43) / 100.0;
@@ -691,10 +693,29 @@ static gps_mask_t sky_msg_nav_data(struct gps_device_t *session,
     session->newdata.ecef.vy = getbes32(buf, 51) / 100.0;
     session->newdata.ecef.vz = getbes32(buf, 55) / 100.0;
     mask |= ECEF_SET | VECEF_SET;
+    /* Skytraq do return lat/long, but not speeds/climb rates, so use ecef_to_wgs84fix() anyway*/
+    session->newdata.latitude  = 1e-7 * getbes32(buf,  9);
+    session->newdata.longitude = 1e-7 * getbes32(buf, 13);
+    session->newdata.altitude  = 1e-2 * getbes32(buf, 21);
+    mask |= LATLON_SET | ALTITUDE_SET;
+    ecef_to_wgs84fix(&session->newdata, &session->gpsdata.separation,
+		     session->newdata.ecef.x,  session->newdata.ecef.y,  session->newdata.ecef.z,
+		     session->newdata.ecef.vx, session->newdata.ecef.vy, session->newdata.ecef.vz);
+    mask |= SPEED_SET | TRACK_SET | CLIMB_SET;
+    session->gpsdata.dop.gdop = getbeu16(buf, 25);
+    session->gpsdata.dop.pdop = getbeu16(buf, 27);
+    session->gpsdata.dop.hdop = getbeu16(buf, 29);
+    session->gpsdata.dop.vdop = getbeu16(buf, 31);
+    session->gpsdata.dop.tdop = getbeu16(buf, 33);
+    mask |= DOP_SET | CLEAR_IS | REPORT_IS;
     gpsd_log(&session->context->errout, LOG_DATA,
-	     "Skytraq: NAVDATA mode=%d time=%.3f lat=%.6f lon=%.6f ECEF =%.2f/%.2f/%.2f\n",
-	     navmode, session->gpsdata.online, session->newdata.latitude, session->newdata.longitude,
-	     session->newdata.ecef.x, session->newdata.ecef.y, session->newdata.ecef.z);
+	     "Skytraq: NAVDATA time=%.3f, lat=%.6f lon=%.6f alt=%.2f mode=%d status=%d\n",
+	     session->newdata.time,
+	     session->newdata.latitude,
+	     session->newdata.longitude,
+	     session->newdata.altitude,
+	     session->newdata.mode,
+	     session->gpsdata.status);
     return mask;
 }
 
@@ -1088,9 +1109,11 @@ static gps_mask_t sky_msg_E3(struct gps_device_t *session,
     return ONLINE_SET;
 }
 
-
-static gps_mask_t sky_parse(struct gps_device_t * session, unsigned char *buf,
-			    size_t len)
+/*
+ * Main entry point for received packets
+ */
+static gps_mask_t sky_dispatch(struct gps_device_t * session, unsigned char *buf,
+			       size_t len)
 {
     char hex[80];
     gps_mask_t mask = 0;
@@ -1248,8 +1271,8 @@ static gps_mask_t sky_parse(struct gps_device_t * session, unsigned char *buf,
 static gps_mask_t sky_parse_input(struct gps_device_t *session)
 {
     if (session->lexer.type == SKY_PACKET) {
-	return sky_parse(session, session->lexer.outbuffer,
-			 session->lexer.outbuflen);
+	return sky_dispatch(session, session->lexer.outbuffer,
+			    session->lexer.outbuflen);
     } else {
 	/* Also handles Skytraq-proprietary messages ala $PSTI */      
 	return generic_parse_input(session);
@@ -1263,9 +1286,9 @@ const struct gps_type_t driver_skytraq =
     .type_name      = "Skytraq",	/* full name of type */
     .packet_type    = SKY_PACKET,	/* associated lexer packet type */
     .flags	    = DRIVER_STICKY,	/* remember this */
-    .trigger	    = "$Skytraq",	/* Emitted on reset */
+    .trigger	    = "$Skytraq",	/* Emitted on power-on and warm/cold reset */
     .channels       = SKY_CHANNELS,	/* Survey-grade GPS? */
-    .probe_detect   = NULL,		/* no probe */
+    .probe_detect   = sky_probe_detect,	/* How to probe for Skytraq */
     .get_packet     = generic_get,	/* be prepared for Skytraq or NMEA */
     .parse_packet   = sky_parse_input,	/* parse message packets */
     .rtcm_writer    = gpsd_write,	/* send RTCM data straight */
@@ -1279,6 +1302,9 @@ const struct gps_type_t driver_skytraq =
 #ifdef CONTROLSEND_ENABLE
     .control_send     = sky_control_send,/* how to send a control string */
 #endif /* CONTROLSEND_ENABLE */
+#ifdef TIMEHINT_ENABLE
+    .time_offset      = NULL,           /* Unsupported */
+#endif /* TIMEHINT_ENABLE */
 };
 /* *INDENT-ON* */
 #endif /* defined( SKYTRAQ_ENABLE) && defined(BINARY_ENABLE) */
