@@ -1732,26 +1732,36 @@ static gps_mask_t processSTI(int count, char *field[],
     return mask;
 }
 
-/*
- * Skytraq undocumented Datum sentences take this format:
- * $GPDTM,W84,,0.000000,N,0.000000,E,0.000000,W84*5F
- */
 static gps_mask_t processGPDTM(int count UNUSED, char *field[] UNUSED,
 			       struct gps_device_t *session UNUSED)
 /* Datum reporting cycle - currently ignored */
 {
+    /*
+     * DTM,W84,,0.000000,N,0.000000,E,0.000000,W84*5F
+     * 1  W84	    Local Datum Code
+     * 2  (blank)  Local Datum subcode. May be blank
+     * 3  0.000000 Latitude offset
+     * 4  N        N or S
+     * 5  0.000000 Longitude offset
+     * 6  E        E or W
+     * 7  0.000000 Altitude offset
+     * 8  W84      Datum name
+     */
     /* Set something, so it won't look like an unknown sentence */
     return ONLINE_SET;
 }
 
-/*
- * Skytraq undocumented GRS sentences take this format:
- * $GPGRS,193832.000,0,-0.16,-1.57,15.37,-11.50,-39.18,2.94,,,,,,*40
- */
 static gps_mask_t processGPGRS(int count UNUSED, char *field[] UNUSED,
 			       struct gps_device_t *session UNUSED)
-/* Datum reporting cycle - currently ignored */
+/* GPS Range Residuala - currently ignored */
 {
+    /*
+     * GRS,193832.000,0,-0.16,-1.57,15.37,-11.50,-39.18,2.94,,,,,,*40
+     * GRS,hhmmss.sss,n,,s1,s2,s3,s4,s5,s6,,,,,,*40
+     * 1  193832.000 TC time of associated GGA fix
+     * 2  0 or 1     0=Residuals used in GGA, 1=Residuals calculated after GGA
+     * 3..14         Satellite N residual in meters (N=4..12 is blank if unused)
+     */
     /* Set something, so it won't look like an unknown sentence */
     return ONLINE_SET;
 }
