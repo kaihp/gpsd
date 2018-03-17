@@ -23,8 +23,6 @@
 #include "driver_skytraq.h"
 #if defined(SKYTRAQ_ENABLE)
 
-#define LOG_LOUD LOG_SHOUT
-
 /*
  * No ACK/NAK?  Just rety after 6 seconds
  */
@@ -73,7 +71,7 @@ static void sky_sleep(unsigned int usec)
 static ssize_t sky_control_send(struct gps_device_t *session, char *msg, size_t len)
 {
     char hex[80];
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_RAW,
 	     "sky_control_send('%s', %d)\n",
 	     gpsd_packetdump(hex, sizeof(hex)-1, (char *)msg, len), len);
     return sky_write(session, (unsigned char *)msg);
@@ -113,11 +111,11 @@ static bool sky_write(struct gps_device_t *session, unsigned char *msg)
 
     if ((mid==SKY_MSGID_62) || (mid==SKY_MSGID_63) ||
 	(mid==SKY_MSGID_64) || (mid==SKY_MSGID_65))
-	gpsd_log(&session->context->errout, LOG_LOUD,
+	gpsd_log(&session->context->errout, LOG_RAW,
 		 "=> GPS: Skytraq sending MID/SID=0x%02x/0x%02x: %s\n",
 		 mid, sid, gpsd_packetdump(hex, sizeof(hex)-1, (char *)msg, len+7));
     else
-	gpsd_log(&session->context->errout, LOG_LOUD,
+	gpsd_log(&session->context->errout, LOG_RAW,
 		 "=> GPS: Skytraq sending MID=0x%02x: %s\n", mid,
 		 gpsd_packetdump(hex, sizeof(hex)-1, (char *)msg, len+7));
     /* Copy to public assembly buffer for gpsmon snooping */
@@ -145,7 +143,7 @@ static void sky_init_query(struct gps_device_t *session)
 	0x00, SKY_END_1, SKY_END_2
     };
     int test = strncmp(session->subtype, "Skytraq", 7);
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_DATA,
 	     "Skytraq: sky_init_query() detected=%d\n", skytraq_detected);
     if (0 != test && !skytraq_detected) {
 	/* If not marked as Skytraq yet, send a probe */
@@ -168,7 +166,7 @@ static void sky_event_hook(struct gps_device_t *session, event_t event)
 	gpsd_log(&session->context->errout, LOG_PROG, "sky_event_hook(event_triggermatch)\n");
     } else if (event == event_identified) {
 	/* Skytraq GNSS receiver positively detected */
-	gpsd_log(&session->context->errout, LOG_LOUD, "sky_event_hook(event_identified)\n");
+	gpsd_log(&session->context->errout, LOG_PROG, "sky_event_hook(event_identified)\n");
 #if 0
 	if (!config_in_progress && strncmp(session->subtype, "Skytraq", 7)) {
 	    config_in_progress = 1;
@@ -177,18 +175,18 @@ static void sky_event_hook(struct gps_device_t *session, event_t event)
 #endif
     } else if (event == event_configure && !config_in_progress) {
 	/* Configure device */
-	gpsd_log(&session->context->errout, LOG_LOUD, "sky_event_hook(event_configure)\n");
+	gpsd_log(&session->context->errout, LOG_PROG, "sky_event_hook(event_configure)\n");
 	config_in_progress = 1;
 	sky_configure(session, 0);
     } else if (event == event_driver_switch) {
 	/* Auto-baud event */
-	gpsd_log(&session->context->errout, LOG_LOUD, "sky_event_hook(event_driver_switch)\n");
+	gpsd_log(&session->context->errout, LOG_PROG, "sky_event_hook(event_driver_switch)\n");
     } else if (event == event_deactivate) {
-	gpsd_log(&session->context->errout, LOG_LOUD, "sky_event_hook(event_deactivate)\n");
+	gpsd_log(&session->context->errout, LOG_PROG, "sky_event_hook(event_deactivate)\n");
 	sky_deactivate(session);
     } else if (event == event_reactivate) {
 	/* Driver reactivation/reset */
-	gpsd_log(&session->context->errout, LOG_LOUD, "sky_event_hook(event_reactivate)\n");
+	gpsd_log(&session->context->errout, LOG_PROG, "sky_event_hook(event_reactivate)\n");
 	sky_configure(session, 1);
     }
 }
@@ -201,7 +199,7 @@ static void sky_configure(struct gps_device_t *session, int hard)
     msg[1] = SKY_START_2;
     msg[2] = 0x00;
 
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_PROG,
 	     "Skytraq: sky_configure(%d), previous probe=%d (%s)\n",
 	     hard, (0 != test), session->subtype);
     if (0 == test && !hard) {
@@ -209,57 +207,45 @@ static void sky_configure(struct gps_device_t *session, int hard)
     }
     /* Subtype hasn't been set or hard reset/reconfig; do it all */
     nmea_send(session, "$Skytraq");
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_QUERY_SW_VER\n");
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_QUERY_SW_VER\n");
     msg[3] = 2;
     msg[4] = SKY_QUERY_SW_VER;
     msg[5] = 0x01;
     (void)sky_write(session, msg);
     /* Query extended version information */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_64_QUERY_VERSION_EXT\n");
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_64_QUERY_VERSION_EXT\n");
     msg[3] = 2;
     msg[4] = SKY_MSGID_64;
     msg[5] = SKY_64_QUERY_VERSION_EXT;
     (void)sky_write(session, msg);
-#if 0
-    /* Query FW checksum */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_QUERY_SW_CRC\n");
-    msg[3] = 2;
-    msg[4] = SKY_QUERY_SW_CRC;
-    msg[5] = 0x01;
-    (void)sky_write(session, msg);
-    /* Skytraq does an online computation of the CRC, so wait 800ms + some more */
-    sky_sleep(1000000);
-#endif
     /* Query boot status */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_64_QUERY_BOOT_STATUS\n");
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_64_QUERY_BOOT_STATUS\n");
     msg[3] = 2;
     msg[4] = SKY_MSGID_64;
     msg[5] = SKY_64_QUERY_BOOT_STATUS;
     (void)sky_write(session, msg);
-    /* Get GNSS time, including leap seconds */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_64_QUERY_GNSS_TIME\n");
-    msg[3] = 2;
-    msg[4] = SKY_MSGID_64;
-    msg[5] = SKY_64_QUERY_GNSS_TIME;
-    (void)sky_write(session, msg);
-    /* Get UTC time */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_64_QUERY_GPS_UTC_TIME\n");
+    /* Get UTC date */
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_64_QUERY_GPS_UTC_TIME\n");
     msg[3] = 2;
     msg[4] = SKY_MSGID_64;
     msg[5] = SKY_64_QUERY_GPS_UTC_TIME;
     (void)sky_write(session, msg);
-    sky_sleep(100000); /* testing if Skytraq needs a delay here... */
+    /* Get GNSS time, including leap seconds */
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_64_QUERY_GNSS_TIME\n");
+    msg[3] = 2;
+    msg[4] = SKY_MSGID_64;
+    msg[5] = SKY_64_QUERY_GNSS_TIME;
+    (void)sky_write(session, msg);
     /* Enable power-saving mode */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_CONFIG_POWER_MODE=1\n");
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_CONFIG_POWER_MODE=1\n");
     msg[3] = 3;
     msg[4] = SKY_CONFIG_POWER_MODE;
     msg[5] = 0x01;
     msg[6] = 0x00;
     (void)sky_write(session, msg);
-    sky_sleep(100000); /* testing if Skytraq needs a delay here... */
 #ifdef RECONFIGURE_ENABLE
     /* Enable SBAS mode (Satellite Based Augmented System) */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_62_CONFIG_SBAS=1,2,8,1,3,7\n");
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_62_CONFIG_SBAS=1,2,8,1,3,7\n");
     msg[ 3] = 9;
     msg[ 4] = SKY_MSGID_62;
     msg[ 5] = SKY_62_CONFIG_SBAS;
@@ -271,8 +257,8 @@ static void sky_configure(struct gps_device_t *session, int hard)
     msg[11] = 0x07;	/* Subsystem mask: MSAS|EGNOS|WAAS */
     msg[12] = 0x00;	/* Update to: SRAM */
     (void)sky_write(session, msg);
-    /* Enable QZSS, 1 ch */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_62_CONFIG_QZSS=1,1\n");
+    /* Enable QZSS, 1 ch (Japan based SBAS) */
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_62_CONFIG_QZSS=1,1\n");
     msg[ 3] = 5;
     msg[ 4] = SKY_MSGID_62;
     msg[ 5] = SKY_62_CONFIG_QZSS;
@@ -280,18 +266,18 @@ static void sky_configure(struct gps_device_t *session, int hard)
     msg[ 7] = 0x01;	/* Channels: 1 */
     msg[ 8] = 0x00;	/* Update to: SRAM */
     (void)sky_write(session, msg);
-    /* Enable SAEE */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_63_CONFIG_SAEE=1,0\n");
+    /* Enable SAEE (Self-Aided Ephemeris Estimation */
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_63_CONFIG_SAEE=1,0\n");
     msg[ 3] = 4;
     msg[ 4] = SKY_MSGID_63;
     msg[ 5] = SKY_63_CONFIG_SAEE;
     msg[ 6] = 0x01;	/* Default mode */
     msg[ 7] = 0x00;	/* Update to: SRAM */
     (void)sky_write(session, msg);
-    //    if (session->mode != O_OPTIMIZE) {
+    if (session->mode != O_OPTIMIZE) {
 	/* Only config NMEA msg intervals if we are in NMEA mode */
 	/* Extended NMEA Message Interval */
-	gpsd_log(&session->context->errout, LOG_LOUD,
+	gpsd_log(&session->context->errout, LOG_DATA,
 		 "=> Skytraq: SKY_66_CONFIG_EXT_NMEA_INTVL=1,1,1,1,1,0,1,1,10,1,0,10\n");
 	msg[ 3] = 15;
 	msg[ 4] = SKY_MSGID_64;
@@ -301,25 +287,25 @@ static void sky_configure(struct gps_device_t *session, int hard)
 	msg[ 8] = 10;	/* GSV Interval */
 	msg[ 9] = 1;	/* GLL Interval */
 	msg[10] = 1;	/* RMC Interval */
-	msg[11] = 10;	/* VTG Interval: disable */
+	msg[11] = 0;	/* VTG Interval: disable */
 	msg[12] = 10;	/* ZDA Interval */
 	msg[13] = 10;	/* GNS Interval: ? */
 	msg[14] = 10;	/* GBS Interval */
-	msg[15] = 10;	/* GRS Interval: ? */
-	msg[16] = 10;	/* DTM Interval: disable */
+	msg[15] = 0;	/* GRS Interval: ? */
+	msg[16] = 0;	/* DTM Interval: disable */
 	msg[17] = 10;	/* GST Interval */
 	msg[18] = 0;	/* Update to: SRAM */
 	(void)sky_write(session, msg);
 	/* $PSTI Message Interval */
-	gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_64_CONFIG_PSTI_INTVL=1\n");
+	gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_64_CONFIG_PSTI_INTVL=1\n");
 	msg[ 3] = 3;
 	msg[ 4] = SKY_MSGID_64;
 	msg[ 5] = SKY_64_CONFIG_PSTI_INTVL;
-	msg[ 6] = 1;	/* PSTI Interval */
+	msg[ 6] = 0;	/* PSTI Interval: disable */
 	(void)sky_write(session, msg);
-	// }
+    }
     /* Enable interference detection */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_64_CONFIG_INTERFER_DET=1,0\n");
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_64_CONFIG_INTERFER_DET=1,0\n");
     msg[ 3] = 4;
     msg[ 4] = SKY_MSGID_64;
     msg[ 5] = SKY_64_CONFIG_INTERFER_DET;
@@ -327,7 +313,7 @@ static void sky_configure(struct gps_device_t *session, int hard)
     msg[ 7] = 0x00;	/* Update to: SRAM */
     (void)sky_write(session, msg);
     /* GNSS Navigation mode = automatic */
-    gpsd_log(&session->context->errout, LOG_LOUD, "=> Skytraq: SKY_64_CONFIG_NAV_MODE=auto\n");
+    gpsd_log(&session->context->errout, LOG_DATA, "=> Skytraq: SKY_64_CONFIG_NAV_MODE=auto\n");
     msg[ 3] = 4;
     msg[ 4] = SKY_MSGID_64;
     msg[ 5] = SKY_64_CONFIG_NAV_MODE;
@@ -360,7 +346,7 @@ static void sky_deactivate(struct gps_device_t *session)
     /* Do a Warm restart. Use system time as baseline for GPS */
     /* <hdr>.<PL>.ID.id.YYYY.MM.DD.HH.mm.ss.LATI.LONG.ALTI.CS.<end> */
     /* a0.a1.000f.01.01.07e2.03.09.15.14.1f.3700.0c00.1700.dd.0d0a */
-    gpsd_log(&session->context->errout, LOG_LOUD, "Skytraq deactivation: back to defaults & warm restart\n");
+    gpsd_log(&session->context->errout, LOG_PROG, "Skytraq deactivation: back to defaults & warm restart\n");
 #if 0
     msg[ 3] = 0x02;
     msg[ 4] = SKY_FACTORY_RESET;
@@ -408,7 +394,7 @@ static void sky_mode(struct gps_device_t *session, int mode)
     if (mode == MODE_NMEA) msg[5] = 0x01;
     if (mode == MODE_BINARY) msg[5] = 0x02;
     session->back_to_nmea = (mode == MODE_NMEA);
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_PROG,
 	     "Skytraq: setting MODE=%s\n", (mode==MODE_BINARY) ? "BINary" : "NMEA");
     (void)sky_write(session, msg);
     return;
@@ -430,7 +416,7 @@ static bool sky_speed(struct gps_device_t *session,
     unsigned baud[N_BAUD] = {4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600};
     int i;
 
-    gpsd_log(&session->context->errout, LOG_SHOUT,
+    gpsd_log(&session->context->errout, LOG_PROG,
 	     "Skytraq: sky_speed(%d, %d%c%d) called\n",speed, 8, parity, stopbits);
     /* Bail out on anything but 8N1 format */
     if (parity != 'N' || stopbits != 1)
@@ -468,7 +454,7 @@ static bool sky_rate(struct gps_device_t *session, double cycletime)
     unsigned rates[SKY_RATES] = {1, 2, 4, 5, 8, 10, 20, 40, 50};
     unsigned rate = (unsigned) (100/cycletime);
     int i;
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_PROG,
 	     "Skytraq: sky_rate() called with cycletime = %.2f\n", cycletime);
     if (cycletime > 1.0) {
       /* GPS update rate can't be lower than 1Hz, but it can be faked elsewhere
@@ -490,7 +476,7 @@ static bool sky_rate(struct gps_device_t *session, double cycletime)
 	       cycletime, rate);
       return false;
     }
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_PROG,
 	     "Skytraq: Setting update rate to %d Hz\n", rate/100);
     return sky_write(session, msg);
 }
@@ -530,7 +516,7 @@ static gps_mask_t sky_msg_sw_ver(struct gps_device_t *session,
 	    over_x, over_y, over_z,
 	    rev_yy, rev_mm, rev_dd);
 
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_DATA,
 	     "Skytraq: Software version: kver=%u.%u.%u, over=%u.%u.%u, rev=%02u.%02u.%02u\n",
 	    kver_x, kver_y, kver_z,
 	    over_x, over_y, over_z,
@@ -562,14 +548,14 @@ static gps_mask_t sky_msg_sw_crc(struct gps_device_t *session,
     if (cur_len+11>sizeof(session->subtype)-1)
 	return 0;
     if (!(skytraq_detected & (1 << 1))) {
-	gpsd_log(&session->context->errout, LOG_LOUD,
+	gpsd_log(&session->context->errout, LOG_DATA,
 		 "RESP_SW_CRC: RESP_SW_VER not set\n");
 	return 0;
     }
     (void)snprintf(session->subtype+cur_len, sizeof(session->subtype) - 12,
 		   " CRC=0x%04x", crc);
     skytraq_detected |= 1 << 3;
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_DATA,
 	     "%s\n",session->subtype);
     return 0;
 }
@@ -599,14 +585,14 @@ static gps_mask_t sky_msg_sw_ver_ext(struct gps_device_t *session,
 	return 0;
     }
     if (!(skytraq_detected & (1 << 1))) {
-	gpsd_log(&session->context->errout, LOG_LOUD,
+	gpsd_log(&session->context->errout, LOG_DATA,
 		 "RESP_SW_VER_EXT: RESP_SW_VER not set\n");
 	return 0;
     }
     (void)snprintf(session->subtype+cur_len, sizeof(session->subtype) - cur_len - 1,
 		   "%s", buf+2);
     skytraq_detected |= 1 << 2;
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_DATA,
 	     "Skytraq: Version Extension string: '%s'\n",(char *)buf+2);
     return 0;
 }
@@ -618,7 +604,7 @@ static gps_mask_t sky_msg_boot_status(struct gps_device_t *session, unsigned cha
     int flash;
     status = getub(buf, 2);
     flash  = getub(buf, 3);
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_DATA,
 	     "Skytraq: booted from %s.  Flash type 0x%02x\n", (status==0) ? "FLASH" : "ROM" , flash);
     return 0;
 }
@@ -631,7 +617,7 @@ static gps_mask_t sky_msg_boot_status(struct gps_device_t *session, unsigned cha
  * ecef.{x,y,z}, ecef_v.{x,y,z}
  */
 static gps_mask_t sky_msg_nav_data(struct gps_device_t *session,
-				       unsigned char *buf, size_t len)
+				   unsigned char *buf, size_t len)
 {
     unsigned char  navmode;	/* Navigation fix mode (0: No fix, 1: 2D, 2: 3D, 3: 3D+DGNSS */
     unsigned short week;	/* GNSS week number */
@@ -719,6 +705,9 @@ static gps_mask_t sky_msg_nav_data(struct gps_device_t *session,
     return mask;
 }
 
+/* 
+ * GNSS Time response (0x64,0x8E)
+ */
 static gps_mask_t sky_msg_gnss_time(struct gps_device_t *session,
 				    unsigned char *buf, size_t len)
 {
@@ -753,7 +742,7 @@ static gps_mask_t sky_msg_gnss_time(struct gps_device_t *session,
     if (0 != (mask & LEAP_VALID)) {
 	leap = 0;
     }
-    gpsd_log(&session->context->errout, LOG_LOUD,
+    gpsd_log(&session->context->errout, LOG_DATA,
 	     "Skytraq: received GNSS time: %.4f%06d week=%d leap=%i default=%i\n",
 	     tow/1000.0, nsec, week, leap, dleap);
     return 0;
@@ -762,27 +751,29 @@ static gps_mask_t sky_msg_gnss_time(struct gps_device_t *session,
 static gps_mask_t sky_msg_gps_utc_time(struct gps_device_t *session,
 				       unsigned char *buf, size_t len)
 {
-    unsigned year, month, day;
+    unsigned inval, year, month, day;
 
     if (7 != len) {
 	gpsd_log(&session->context->errout, LOG_WARN,
 	       "Skytraq: SKY_RESP_GPS_UTC_REF_TIME returned illegal length %d\n", len);
 	return 0;
     }
-    if (1 == getub(buf, 2)) {
-      /* not valid, return */
-      gpsd_log(&session->context->errout, LOG_WARN,
-	       "Skytraq: received invalid GPS UTC time\n");
-      return 0;
-    }
-    year = getbeu16(buf, 3);
+    inval = getub(buf, 2);
+    year  = getbeu16(buf, 3);
     month = getub(buf, 5);
-    day = getub(buf, 6);
-    // gpsd_century_update(session, year - (year % 100));
-    gpsd_log(&session->context->errout, LOG_LOUD,
-	     "Skytraq: received GPS UTC time: %04d-%02d-%02d\n",
+    day   = getub(buf, 6);
+    if (inval || !year || !month || !day) {
+      /* not valid, return */
+      gpsd_log(&session->context->errout, LOG_PROG,
+	       "Skytraq: received invalid GPS UTC date (%04d-%02d-%02d)\n",
+	       year,month,day);
+      return ONLINE_SET;
+    }
+    gpsd_century_update(session, year - (year % 100));
+    gpsd_log(&session->context->errout, LOG_DATA,
+	     "Skytraq: received GPS UTC date: %04d-%02d-%02d\n",
 	     year, month, day);
-    return 0; /* we only set century; not sure if we should do TIME_SET */
+    return ONLINE_SET;
 }
 
 /*
@@ -1137,7 +1128,7 @@ static gps_mask_t sky_dispatch(struct gps_device_t * session, unsigned char *buf
     }
     skytraq_detected |= 1; /* got a valid Skytraq response; mark as detected */
     if (buf[4]!=SKY_RESP_NAV_DATA_MSG)
-	gpsd_log(&session->context->errout, LOG_LOUD,
+	gpsd_log(&session->context->errout, LOG_PROG,
 		 "<= Skytraq: Received %s\n",
 		 gpsd_packetdump(hex,sizeof(hex)-1,(char *)buf, len));
     buf += 4;   /* skip the leaders and length */
@@ -1166,16 +1157,21 @@ static gps_mask_t sky_dispatch(struct gps_device_t * session, unsigned char *buf
     case SKY_RESP_SW_CRC:
 	return sky_msg_sw_crc(session, buf, len);
     case SKY_RESP_ACK:
-	/* FALL-THROUGH */
+	if ((buf[1]<SKY_MSGID_62) || (buf[1]>SKY_MSGID_6A)) {
+	  gpsd_log(&session->context->errout, LOG_PROG,
+		   "<= Skytraq: ACK @ MID=0x%02x\n", buf[1]);
+	} else {
+	  gpsd_log(&session->context->errout, LOG_PROG,
+		   "<= Skytraq: ACK @ MID/SID=0x%02x/0x%02x\n", buf[1], buf[2]);
+	}	  
+	break;
     case SKY_RESP_NACK:
 	if ((buf[1]<SKY_MSGID_62) || (buf[1]>SKY_MSGID_6A)) {
-	  gpsd_log(&session->context->errout, LOG_LOUD /* LOG_PROG */,
-		   "<= Skytraq: %sACK to MID=0x%02x\n",
-		   (mid==SKY_RESP_NACK) ? "N" : "", buf[1]);
+	  gpsd_log(&session->context->errout, LOG_WARN,
+		   "<= Skytraq: NACK @ MID=0x%02x\n", buf[1]);
 	} else {
-	  gpsd_log(&session->context->errout, LOG_LOUD /* LOG_PROG */,
-		   "<= Skytraq: %sACK to MID/SID=0x%02x/0x%02x\n",
-		     (mid==SKY_RESP_NACK) ? "N" : "", buf[1],buf[2]);
+	  gpsd_log(&session->context->errout, LOG_WARN,
+		   "<= Skytraq: NACK @ MID/SID=0x%02x/0x%02x\n", buf[1], buf[2]);
 	}	  
 	break;
     case SKY_RESP_NAV_DATA_MSG:
@@ -1207,7 +1203,7 @@ static gps_mask_t sky_dispatch(struct gps_device_t * session, unsigned char *buf
 		     "Skytraq: Unable to handle MID/SID=0x%02x/0x%02x\n",mid,sid);
 	    break;
 	}
- #if 0 /* NOT IMPLEMENTED YET */
+#if 0 /* NOT IMPLEMENTED YET */
     case SKY_RESP_POS_UPD_RATE:
 	return sky_msg_pos_upd_rate(session, buf, len);
     case SKY_RESP_NMEA_TALKER:
@@ -1234,36 +1230,32 @@ static gps_mask_t sky_dispatch(struct gps_device_t * session, unsigned char *buf
 	return sky_msg_pps_timing(session, buf, len);
 #endif
     case SKY_MSG_MEAS_TIME:
-	/* 220 */
 	return sky_msg_DC(session, buf, len);
     case SKY_MSG_MEAS_RAW:
-	/* 221 */
 	return sky_msg_DD(session, buf, len);
     case SKY_MSG_SV_CHAN_STATUS:
-	/* 222 */
 	return sky_msg_DE(session, buf, len);
     case SKY_MSG_NAV_PVT:
-	/* 223 - Navigation status (PVT)  */
 	return sky_msg_DF(session, buf, len);
     case SKY_MSG_SUBFRAME_DATA:
-	/* 224 */
 	return sky_msg_E0(session, buf, len);
     case SKY_MSG_BD_SUBFRAME_D1:
-	/* 226 - Beidou2 D1 Subframe data */
 	return sky_msg_E2(session, buf, len);
     case SKY_MSG_BD_SUBFRAME_D2:
-	/* 227 - Beidou2 D2 Subframe data */
 	return sky_msg_E3(session, buf, len);
 
     case 0x85:
 	/* Undocumented response package:
 	 * <a0 a1> <00 05> <85> 6a 06 00 05 <ec> <0d 0a>
 	 */
+        gpsd_log(&session->context->errout, LOG_SHOUT,
+		 "<=Skytraq: RESP 0x85: len=%zd %s\n", len,
+		 gpsd_packetdump(hex, sizeof(hex)-1, (char *)buf, len));
 	/* FALL-THROUGH */
     default:
-	gpsd_log(&session->context->errout, LOG_ERROR,
-		 "Skytraq: Unknown MessageID 0x%02x length %zd\n",
-		 buf[0], len);
+        gpsd_log(&session->context->errout, LOG_ERROR,
+		 "Skytraq: Unknown MID 0x%02x len=%zd %s\n", buf[0], len,
+		 gpsd_packetdump(hex, sizeof(hex)-1, (char *)buf, len));
     }
     return mask;
 }
@@ -1287,8 +1279,8 @@ const struct gps_type_t driver_skytraq =
     .packet_type    = SKY_PACKET,	/* associated lexer packet type */
     .flags	    = DRIVER_STICKY,	/* remember this */
     .trigger	    = "$Skytraq",	/* Emitted on power-on and warm/cold reset */
-    .channels       = SKY_CHANNELS,	/* Survey-grade GPS? */
-    .probe_detect   = sky_probe_detect,	/* How to probe for Skytraq */
+    .channels       = SKY_CHANNELS,	/* Survey-grade GPS */
+    .probe_detect   = sky_probe_detect,	/* Really same as .init_query */
     .get_packet     = generic_get,	/* be prepared for Skytraq or NMEA */
     .parse_packet   = sky_parse_input,	/* parse message packets */
     .rtcm_writer    = gpsd_write,	/* send RTCM data straight */
